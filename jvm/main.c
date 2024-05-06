@@ -9,6 +9,8 @@ int main(int argc, const char** argv) {
 	FileHandle* fh = fm->Open(argv[1], "r");
 	info("Starting Sunrise VM %s", VERSION);
 	info("Loading class = %s", argv[1]);
+	if (!fh) 
+		fatal("Could not access file %s", argv[1]);
 	ClassFile* class = LoadClass(fh);
 	return 0;
 }

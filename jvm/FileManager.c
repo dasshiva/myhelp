@@ -22,7 +22,7 @@ void Read(struct FileHandle* self, void* buf, uint64_t len) {
 }
 
 void Seek(struct FileHandle* self, uint8_t from, int64_t offset) {
-	fseek(self->handle, from, offset);
+	fseek(self->handle, offset, from);
 }
 
 uint64_t Pos(struct FileHandle* self) {
