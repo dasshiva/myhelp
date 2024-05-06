@@ -24,18 +24,18 @@ inline static uint32_t get_u4(uint8_t* buf, uint64_t* offset) {
         return r1 << 24 | r2 << 16 | r3 << 8 | r4;
 }
 
-struct cpelem* Find (ConstantPool* self, uint16_t index) {
+struct cpelem Find (ConstantPool* self, uint16_t index) {
 	if (index == 0 || index > self->size) {
 		warn("Invalid access to index %d", index);
-		return NULL;
+		return self->elements[0];
 	}
 	return self->elements[index - 1];
 }
 
 uint8_t* GetString(ConstantPool* self, uint16_t index) {
-	struct cpelem* elem = self->Find(self, index);
-	if (!elem || elem->tag != JVM_CONSTANT_Utf8)
-		return elem->elem.string.bytes;
+	struct cpelem elem = self->Find(self, index);
+	if (elem.tag == JVM_CONSTANT_Utf8)
+		return elem.elem.string.bytes;
 	else {
 		warn("Index %d is not a UTF-8 element", index);
 		return NULL;
@@ -43,11 +43,26 @@ uint8_t* GetString(ConstantPool* self, uint16_t index) {
 }
 
 int IsOfType(ConstantPool* self, uint8_t type, uint16_t index) {
-	if (self->Find(self, index)->tag != type) {
+	if (self->Find(self, index).tag != type) {
 		warn("Index %d is not of type %d", index, type);
 		return 0;
 	}
 	return 1;
+}
+
+#include <string.h>
+FM* GetMethod(struct ClassFile* self, const char* name, const char* desc) {
+	FM* method = self->methods;
+	while (method) {
+		const char* n = (const char*) self->cp->GetString(self->cp, method->name_idx);
+		const char* d = (const char*) self->cp->GetString(self->cp, method->desc_idx);
+		if (!strcmp(name, n) && !strcmp(desc, d)) 
+			return method;
+		method = method->next;
+	}
+
+	warn("Method %s:%s not found", name, desc);
+	return NULL;
 }
 
 ClassFile* LoadClass(FileHandle* fh) {
@@ -64,6 +79,7 @@ ClassFile* LoadClass(FileHandle* fh) {
 	u2(); // Skip minor version (it's zero these days anyway)
 	
 	ClassFile* cf = malloc(sizeof(ClassFile));
+	cf->GetMethod = GetMethod;
 	cf->major = u2();
 	info("Class file version %d", cf->major);
 
@@ -73,54 +89,53 @@ ClassFile* LoadClass(FileHandle* fh) {
 	cf->cp->GetString = GetString;
 	cf->cp->IsOfType = IsOfType;
 	info("Constant pool size = %d", cf->cp->size);
-	cf->cp->elements = malloc(sizeof(struct cpelem*) * cf->cp->size);
+	cf->cp->elements = malloc(sizeof(struct cpelem) * cf->cp->size);
 	for (int i = 0; i < cf->cp->size - 1; i++) {
-		cp() = malloc(sizeof(struct cpelem));
-		cp()->tag = u1();
+		cp().tag = u1();
 		// info("Found tag = %d %d", cp()->tag, i);
-		switch (cp()->tag) {
+		switch (cp().tag) {
 			case JVM_CONSTANT_Utf8: 
-				cp()->elem.string.len = u2();
-				cp()->elem.string.bytes = malloc(cp()->elem.string.len);
-				for (int j = 0; j < cp()->elem.string.len; j++) {
-					cp()->elem.string.bytes[j] = u1(); 
+				cp().elem.string.len = u2();
+				cp().elem.string.bytes = malloc(cp().elem.string.len);
+				for (int j = 0; j < cp().elem.string.len; j++) {
+					cp().elem.string.bytes[j] = u1(); 
 				}
 				break;
 			case JVM_CONSTANT_Class:
 			case JVM_CONSTANT_String:
 			case JVM_CONSTANT_MethodType:
-				cp()->elem.index = u2(); 
+				cp().elem.index = u2(); 
 				break;
 			case JVM_CONSTANT_Fieldref:
 			case JVM_CONSTANT_Methodref:
 			case JVM_CONSTANT_NameAndType:
 			case JVM_CONSTANT_InterfaceMethodref:
 			case JVM_CONSTANT_InvokeDynamic:
-				cp()->elem.FMI_NT_INDY_ref.cl_index = u2();
-				cp()->elem.FMI_NT_INDY_ref.nt_index = u2();
+				cp().elem.FMI_NT_INDY_ref.cl_index = u2();
+				cp().elem.FMI_NT_INDY_ref.nt_index = u2();
 				break;
 			case JVM_CONSTANT_Integer:
-				cp()->elem.int32 = u4();
+				cp().elem.int32 = u4();
 				break;
 			case JVM_CONSTANT_Long:
 				uint32_t high = u4();
 				uint32_t low = u4();
-				cp()->elem.int64 = ((long) high << 32) | low;
+				cp().elem.int64 = ((long) high << 32) | low;
 				break;
 			case JVM_CONSTANT_MethodHandle:
-				cp()->elem.mhandle.ref_kind = u1();
-				cp()->elem.mhandle.ref = u1();
+				cp().elem.mhandle.ref_kind = u1();
+				cp().elem.mhandle.ref = u1();
 				break;
 			case JVM_CONSTANT_Float:
 			case JVM_CONSTANT_Double:
 				warn("Float and double is not implemented yet");
 				return NULL;
 			default:
-				warn("Unrecognised constant pool tag %d", cp()->tag);
+				warn("Unrecognised constant pool tag %d", cp().tag);
 				return NULL;
 		}
 	}
-
+	
 	cf->flags = u2();
 	info("Classfile flags = %d", cf->flags);
 
@@ -179,9 +194,9 @@ ClassFile* LoadClass(FileHandle* fh) {
 			method->next = malloc(sizeof(FM));
 			method = method->next;
 		}
+		else method->next = NULL;
 #undef mt_code
 	}
-	method->next = NULL;
 	return cf;
 }
 

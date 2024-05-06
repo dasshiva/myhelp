@@ -12,5 +12,7 @@ int main(int argc, const char** argv) {
 	if (!fh) 
 		fatal("Could not access file %s", argv[1]);
 	ClassFile* class = LoadClass(fh);
+	FM* method = class->GetMethod(class, "method", "()V");
+	Code code = method->attributes->attrs.code;
 	return 0;
 }

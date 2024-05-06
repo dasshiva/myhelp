@@ -57,9 +57,9 @@ struct cpelem {
 
 typedef struct ConstantPool {
 	uint16_t size;
-	struct cpelem **elements;
+	struct cpelem *elements;
 	int (*IsOfType) (struct ConstantPool*, uint8_t, uint16_t);
-	struct cpelem* (*Find) (struct ConstantPool*, uint16_t);
+	struct cpelem (*Find) (struct ConstantPool*, uint16_t);
 	uint8_t* (*GetString) (struct ConstantPool*, uint16_t);
 } ConstantPool;
 
@@ -86,6 +86,7 @@ typedef struct ClassFile {
 	FM* methods;
 	uint16_t attributes_count;
 	Attribute* attributes;
+	FM* (*GetMethod) (struct ClassFile*, const char*, const char*);
 } ClassFile;
 
 ClassFile* LoadClass(FileHandle*);
