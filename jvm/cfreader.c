@@ -75,6 +75,11 @@ uint64_t parse_methods_or_fields(ClassFile* cf, FM** _target, uint16_t number, i
 		// info("%d", method->name_idx);
 		target->desc_idx = u2();
 		target->attribute_count = u2();
+
+		// We set checked to 0 without even knowing if this is a method or not
+		// This is because for fields this particular member will never be accessed so its safe to set it to 0
+
+		target->checked = 0;
 		target->attributes = malloc(sizeof(Attribute) * target->attribute_count);
 		for (int j = 0; j < target->attribute_count; j++) {
 			target->attributes[j].name = (uint8_t*) cf->cp->GetString(cf->cp, u2());

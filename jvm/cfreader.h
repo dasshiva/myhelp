@@ -69,6 +69,7 @@ typedef struct FM { // May be field or method
 	uint16_t name_idx;
 	uint16_t desc_idx;
 	uint16_t attribute_count;
+	uint8_t checked; // Only for methods
 	Attribute* attributes;
 	struct FM* next;
 } FM;

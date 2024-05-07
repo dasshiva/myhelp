@@ -166,7 +166,7 @@ enum {
 };
 
 /* Opcodes */
-
+#define opcode(x) JVM_OPC_##x
 enum {
     JVM_OPC_nop                 = 0,
     JVM_OPC_aconst_null         = 1,
