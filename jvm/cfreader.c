@@ -226,7 +226,7 @@ ClassFile* LoadClass(FileHandle* fh) {
 		return NULL;
 	}
 	offset = off;
-
+	free(buf);
 	return cf;
 }
 

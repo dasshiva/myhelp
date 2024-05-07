@@ -1,5 +1,5 @@
 #include "log.h"
-#include "cfreader.h"
+#include "codegen.h"
 #define VERSION "0.0.1"
 
 int main(int argc, const char** argv) {
@@ -14,6 +14,7 @@ int main(int argc, const char** argv) {
 	ClassFile* class = LoadClass(fh);
 	FM* method = class->GetMethod(class, "method", "()V");
 	auto code = method->attributes->code;
-	info("Code size = %d", code.ins_length);
+	int (*gen)() = codegen(class, method);
+	//gen();
 	return 0;
 }
