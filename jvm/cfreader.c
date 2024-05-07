@@ -35,7 +35,9 @@ struct cpelem Find (ConstantPool* self, uint16_t index) {
 uint8_t* GetString(ConstantPool* self, uint16_t index) {
 	struct cpelem elem = self->Find(self, index);
 	if (elem.tag == JVM_CONSTANT_Utf8)
-		return elem.elem.string.bytes;
+		return elem.bytes;
+	else if (elem.tag == JVM_CONSTANT_Class || elem.tag == JVM_CONSTANT_String) 
+		return GetString(self, elem.index);
 	else {
 		warn("Index %d is not a UTF-8 element", index);
 		return NULL;
@@ -63,6 +65,56 @@ FM* GetMethod(struct ClassFile* self, const char* name, const char* desc) {
 
 	warn("Method %s:%s not found", name, desc);
 	return NULL;
+}
+
+uint64_t parse_methods_or_fields(ClassFile* cf, FM** _target, uint16_t number, int method, uint64_t offset, uint8_t* buf) {
+	FM* target = *_target;
+	for (int i = 0; i < number; i++) {
+		target->flags = u2();
+		target->name_idx = u2();
+		// info("%d", method->name_idx);
+		target->desc_idx = u2();
+		target->attribute_count = u2();
+		target->attributes = malloc(sizeof(Attribute) * target->attribute_count);
+		for (int j = 0; j < target->attribute_count; j++) {
+			target->attributes[j].name = (uint8_t*) cf->cp->GetString(cf->cp, u2());
+			if (!target->attributes[j].name) {
+				warn("Attribute name accesses invalid index");
+				return 0;
+			}
+			target->attributes[j].length = u4();
+			if (!strcmp(target->attributes[j].name, "Code") && method) {
+#define mt_code() target->attributes[j].code
+				 mt_code().max_stack = u2();
+				 mt_code().max_locals = u2();
+				 mt_code().ins_length = u4();
+				 mt_code().ins = calloc(1, mt_code().ins_length);
+				 for (int k = 0; k < mt_code().ins_length; k++) {
+					mt_code().ins[k] = u1();
+				 }
+				 mt_code().exception_table_len = u2();
+				 mt_code().attributes_count = u2();
+				if (mt_code().exception_table_len != 0 || mt_code().attributes_count != 0) {
+					warn("Exceptions and code attributes are not implemented yet");
+					return 0;
+				}
+#undef mt_code
+			}
+			else if (!strcmp(target->attributes[j].name, "ConstantValue") && !method) {
+				target->attributes[j].const_value = u2();
+			}
+			else {
+				warn("Skipping unknown or unexpected attribute %s", target->attributes[j].name);
+				offset += target->attributes[j].length;
+			}
+		}
+	       	if (i + 1 != number) {
+			target->next = malloc(sizeof(FM));
+			target = target->next;
+		}	
+		else target->next = NULL;
+	}
+	return offset;
 }
 
 ClassFile* LoadClass(FileHandle* fh) {
@@ -95,36 +147,37 @@ ClassFile* LoadClass(FileHandle* fh) {
 		// info("Found tag = %d %d", cp()->tag, i);
 		switch (cp().tag) {
 			case JVM_CONSTANT_Utf8: 
-				cp().elem.string.len = u2();
-				cp().elem.string.bytes = malloc(cp().elem.string.len);
-				for (int j = 0; j < cp().elem.string.len; j++) {
-					cp().elem.string.bytes[j] = u1(); 
+				cp().len = u2();
+				cp().bytes = malloc(cp().len + 1);
+				for (int j = 0; j < cp().len; j++) {
+					cp().bytes[j] = u1(); 
 				}
+				cp().bytes[cp().len] = '\0';
 				break;
 			case JVM_CONSTANT_Class:
 			case JVM_CONSTANT_String:
 			case JVM_CONSTANT_MethodType:
-				cp().elem.index = u2(); 
+				cp().index = u2(); 
 				break;
 			case JVM_CONSTANT_Fieldref:
 			case JVM_CONSTANT_Methodref:
 			case JVM_CONSTANT_NameAndType:
 			case JVM_CONSTANT_InterfaceMethodref:
 			case JVM_CONSTANT_InvokeDynamic:
-				cp().elem.FMI_NT_INDY_ref.cl_index = u2();
-				cp().elem.FMI_NT_INDY_ref.nt_index = u2();
+				cp().cl_index = u2();
+				cp().nt_index = u2();
 				break;
 			case JVM_CONSTANT_Integer:
-				cp().elem.int32 = u4();
+				cp().int32 = u4();
 				break;
 			case JVM_CONSTANT_Long:
 				uint32_t high = u4();
 				uint32_t low = u4();
-				cp().elem.int64 = ((long) high << 32) | low;
+				cp().int64 = ((long) high << 32) | low;
 				break;
 			case JVM_CONSTANT_MethodHandle:
-				cp().elem.mhandle.ref_kind = u1();
-				cp().elem.mhandle.ref = u1();
+				cp().ref_kind = u1();
+				cp().ref = u1();
 				break;
 			case JVM_CONSTANT_Float:
 			case JVM_CONSTANT_Double:
@@ -154,49 +207,26 @@ ClassFile* LoadClass(FileHandle* fh) {
 
 	cf->fields_count = u2();
 	info("Number of fields = %d", cf->fields_count);
-	if (cf->fields_count) {
-		warn("Fields are not implemented yet");
+	cf->field = malloc(sizeof(FM));
+	FM* field = cf->field;
+	uint64_t off = parse_methods_or_fields(cf, &field, cf->fields_count, 0, offset, buf);
+	if (off == offset && cf->fields_count != 0) {
+		warn("Failed to parse fields of class file");
 		return NULL;
 	}
+	offset = off;
 
 	cf->method_count = u2();
 	info("Number of methods = %d", cf->method_count);
 	cf->methods = malloc(sizeof(FM));
 	FM* method = cf->methods;
-	for (int i = 0; i < cf->method_count; i++) {
-		method->flags = u2();
-		method->name_idx = u2();
-		// info("%d", method->name_idx);
-		method->desc_idx = u2();
-		method->attribute_count = u2();
-		if (method->attribute_count > 1) {
-			warn("Only Code attribute is supported for methods %d", method->attribute_count);
-			return NULL;
-		}
-		method->attributes = malloc(sizeof(Attribute));
-		method->attributes->name = u2();
-		method->attributes->length = u4();
-	        method->attributes->attrs.code.max_stack = u2();
-		method->attributes->attrs.code.max_locals = u2();
-		method->attributes->attrs.code.ins_length = u4();
-		method->attributes->attrs.code.ins = malloc(method->attributes->attrs.code.ins_length);
-		for (int j = 0; j < method->attributes->attrs.code.ins_length; j++) {
-			method->attributes->attrs.code.ins[j] = u1();
-		}
-		method->attributes->attrs.code.exception_table_len = u2();
-		method->attributes->attrs.code.attributes_count = u2();
-#define mt_code() method->attributes->attrs.code
-		if (mt_code().exception_table_len != 0 && mt_code().attributes_count != 0) {
-			warn("Exceptions and code attributes are not implemented yet");
-			return NULL;
-		}
-		if (i + 1 != cf->method_count) {
-			method->next = malloc(sizeof(FM));
-			method = method->next;
-		}
-		else method->next = NULL;
-#undef mt_code
+	off = parse_methods_or_fields(cf, &method, cf->method_count, 1, offset, buf);
+	if (off == offset && cf->method_count != 0) {
+		warn("Failed to parse methods of class file");
+		return NULL;
 	}
+	offset = off;
+
 	return cf;
 }
 

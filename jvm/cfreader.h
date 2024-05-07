@@ -24,11 +24,12 @@ typedef struct Code {
 } Code;
 
 typedef struct Attribute {
-	uint16_t name;
+	const char* name;
 	uint32_t length;
-	union { // We only support code right now
-		Code code; 
-	} attrs;
+	union { // We only support Code & ConstantValue right now
+		Code code;
+	        uint16_t const_value;	
+	};
 	struct Attribute* next; 
 } Attribute;
 
@@ -39,7 +40,7 @@ struct cpelem {
 		struct {
 			uint16_t cl_index;
 			uint16_t nt_index;
-		} FMI_NT_INDY_ref; // Represents any of : CONSTANT_[Field|Method|Interface|NameAndType|InvokeDynamic] 
+		}; // Represents any of : CONSTANT_[Field|Method|Interface|NameAndType|InvokeDynamic] 
 		int32_t int32; // From here everything is obvious from name
 		float flt32;
 		int64_t int64;
@@ -47,12 +48,12 @@ struct cpelem {
 		struct {
 			uint16_t len;
 			uint8_t* bytes;
-		} string;
+		};
 		struct {
 			uint8_t ref_kind;
 			uint16_t ref;
-		} mhandle;
-	} elem;
+		};
+	};
 };
 
 typedef struct ConstantPool {

@@ -1,5 +1,5 @@
 #ifndef _FM_H_
-#define _FM_H
+#define _FM_H_
 
 #include <stdint.h>
 
