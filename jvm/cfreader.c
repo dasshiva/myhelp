@@ -1,6 +1,5 @@
 #include "cfreader.h"
-#include "log.h"
-
+#include "hash.h"
 #define u1() get_u1(buf, &offset)
 #define u2() get_u2(buf, &offset)
 #define u4() get_u4(buf, &offset)
@@ -53,17 +52,17 @@ int IsOfType(ConstantPool* self, uint8_t type, uint16_t index) {
 }
 
 #include <string.h>
-FM* GetMethod(struct ClassFile* self, const char* name, const char* desc) {
-	FM* method = self->methods;
+FM* GetMethodOrField(struct ClassFile* self, const char* name, const char* desc) {
+	FM* method = (desc[0] == '(') ? self->methods : self->field;
 	while (method) {
 		const char* n = (const char*) self->cp->GetString(self->cp, method->name_idx);
 		const char* d = (const char*) self->cp->GetString(self->cp, method->desc_idx);
-		if (!strcmp(name, n) && !strcmp(desc, d)) 
+		if ((Hash(name) == Hash(n)) && (Hash(d) == Hash(desc))) 
 			return method;
 		method = method->next;
 	}
 
-	warn("Method %s:%s not found", name, desc);
+	warn("Method or Field %s:%s not found", name, desc);
 	return NULL;
 }
 
@@ -77,18 +76,18 @@ uint64_t parse_methods_or_fields(ClassFile* cf, FM** _target, uint16_t number, i
 		target->attribute_count = u2();
 
 		// We set checked to 0 without even knowing if this is a method or not
-		// This is because for fields this particular member will never be accessed so its safe to set it to 0
-
+		// This is because for fields this particular member will never be accessed so its safe to set it to
 		target->checked = 0;
+		target->deprecated = 0;
 		target->attributes = malloc(sizeof(Attribute) * target->attribute_count);
 		for (int j = 0; j < target->attribute_count; j++) {
-			target->attributes[j].name = (uint8_t*) cf->cp->GetString(cf->cp, u2());
+			target->attributes[j].name = (char*) cf->cp->GetString(cf->cp, u2());
 			if (!target->attributes[j].name) {
 				warn("Attribute name accesses invalid index");
 				return 0;
 			}
 			target->attributes[j].length = u4();
-			if (!strcmp(target->attributes[j].name, "Code") && method) {
+			if ((Hash(target->attributes[j].name) == Hash("Code")) && method) {
 #define mt_code() target->attributes[j].code
 				 mt_code().max_stack = u2();
 				 mt_code().max_locals = u2();
@@ -98,16 +97,25 @@ uint64_t parse_methods_or_fields(ClassFile* cf, FM** _target, uint16_t number, i
 					mt_code().ins[k] = u1();
 				 }
 				 mt_code().exception_table_len = u2();
+				 mt_code().exception_table = malloc(mt_code().exception_table_len * 8);
+				 for (int i = 0; i < mt_code().exception_table_len; i++) {
+					 mt_code().exception_table[i].start_pc = u2();
+					 mt_code().exception_table[i].end_pc = u2() - 1;
+					 mt_code().exception_table[i].handler_pc = u2();
+					 mt_code().exception_table[i].type = u2();
+				 }
 				 mt_code().attributes_count = u2();
-				if (mt_code().exception_table_len != 0 || mt_code().attributes_count != 0) {
-					warn("Exceptions and code attributes are not implemented yet");
-					return 0;
-				}
+				 for (int k = 0; k < mt_code().attributes_count; k++) {
+					 warn("Skipping attribute %s", cf->cp->GetString(cf->cp, u2()));
+					 offset += u4();
+				 }
 #undef mt_code
 			}
-			else if (!strcmp(target->attributes[j].name, "ConstantValue") && !method) {
+			else if ((Hash(target->attributes[j].name) == Hash( "ConstantValue")) && !method) {
 				target->attributes[j].const_value = u2();
 			}
+			else if (Hash(target->attributes[j].name) == Hash("Deprecated")) 
+				target->deprecated = 1;
 			else {
 				warn("Skipping unknown or unexpected attribute %s", target->attributes[j].name);
 				offset += target->attributes[j].length;
@@ -136,7 +144,7 @@ ClassFile* LoadClass(FileHandle* fh) {
 	u2(); // Skip minor version (it's zero these days anyway)
 	
 	ClassFile* cf = malloc(sizeof(ClassFile));
-	cf->GetMethod = GetMethod;
+	cf->GetMethodOrField = GetMethodOrField;
 	cf->major = u2();
 	info("Class file version %d", cf->major);
 
@@ -197,8 +205,8 @@ ClassFile* LoadClass(FileHandle* fh) {
 	cf->flags = u2();
 	info("Classfile flags = %d", cf->flags);
 
-	cf->this_class = u2();
-	info("This class = %d", cf->this_class);
+	cf->this_class = (char*) cf->cp->GetString(cf->cp, u2());
+	info("This class = %s", cf->this_class);
 
 	cf->super_class = u2();
 	info("Super class = %d", cf->super_class);

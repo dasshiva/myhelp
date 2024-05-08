@@ -12,7 +12,7 @@ int main(int argc, const char** argv) {
 	if (!fh) 
 		fatal("Could not access file %s", argv[1]);
 	ClassFile* class = LoadClass(fh);
-	FM* method = class->GetMethod(class, "method", "()V");
+	FM* method = class->GetMethodOrField(class, "method", "()V");
 	Run(class, method);
 	return 0;
 }

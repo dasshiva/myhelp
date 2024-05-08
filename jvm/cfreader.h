@@ -69,6 +69,7 @@ typedef struct FM { // May be field or method
 	uint16_t name_idx;
 	uint16_t desc_idx;
 	uint16_t attribute_count;
+	uint8_t deprecated;
 	uint8_t checked; // Only for methods
 	Attribute* attributes;
 	struct FM* next;
@@ -78,7 +79,7 @@ typedef struct ClassFile {
 	uint16_t major;
 	ConstantPool* cp;
 	uint16_t flags;
-	uint16_t this_class;
+	const char* this_class;
 	uint16_t super_class;
 	uint16_t interfaces_count;
 	uint16_t* interfaces;
@@ -88,7 +89,7 @@ typedef struct ClassFile {
 	FM* methods;
 	uint16_t attributes_count;
 	Attribute* attributes;
-	FM* (*GetMethod) (struct ClassFile*, const char*, const char*);
+	FM* (*GetMethodOrField) (struct ClassFile*, const char*, const char*);
 } ClassFile;
 
 ClassFile* LoadClass(FileHandle*);
