@@ -111,6 +111,13 @@ uint64_t parse_methods_or_fields(ClassFile* cf, FM** _target, uint16_t number, i
 				 }
 #undef mt_code
 			}
+			else if ((Hash(target->attributes[j].name) == Hash("Exceptions")) && method) {
+				target->attributes[j].num_exceptions = u2();
+				target->attributes[j].exc_table = malloc(sizeof(uint16_t) * target->attributes[j].num_exceptions);
+				for (int k = 0; k < target->attributes[j].num_exceptions; k++) {
+					target->attributes[j].exc_table[k] = u2();
+				}
+			}
 			else if ((Hash(target->attributes[j].name) == Hash( "ConstantValue")) && !method) {
 				target->attributes[j].const_value = u2();
 			}
@@ -240,6 +247,31 @@ ClassFile* LoadClass(FileHandle* fh) {
 	}
 	offset = off;
 	free(buf);
+
+	cf->attributes_count = u2();
+	cf->attributes = malloc(sizeof(struct Attribute) * cf->attributes_count);
+	for (int i = 0; i < cf->attributes_count; i++) {
+		cf->attributes[i].name = (const char*) cf->cp->GetString(cf->cp, u2());
+		cf->attributes[i].length = u4();
+		if (Hash(cf->attributes[i].name) == Hash("SourceFile")) 
+			cf->attributes[i].source = u2();
+		else if (Hash(cf->attributes[i].name) == Hash("BootstrapMethods")) {
+			cf->attributes[i].num_bt_methods = u2();
+			cf->attributes[i].bt_methods = malloc(sizeof(struct bootstrap) * cf->attributes[i].num_bt_methods);
+			for (int j = 0; j < cf->attributes[i].num_bt_methods; j++) {
+				cf->attributes[i].bt_methods[j].ref = u2();
+				cf->attributes[i].bt_methods[j].nargs = u2();
+				cf->attributes[i].bt_methods[j].args = malloc(sizeof(uint16_t) * cf->attributes[i].bt_methods[j].nargs);
+				for (int k = 0; k < cf->attributes[i].bt_methods[j].nargs; k++) {
+					cf->attributes[i].bt_methods[j].args[k] = u2();
+				}
+			}	
+		}
+		else {
+			warn("Skipping unknown attribute %s", cf->attributes[i].name);
+			offset += cf->attributes[i].length;
+	        }
+	}
 	return cf;
 }
 

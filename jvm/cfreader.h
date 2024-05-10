@@ -28,9 +28,21 @@ typedef struct Attribute {
 	uint32_t length;
 	union { // We only support Code & ConstantValue right now
 		Code code;
-	        uint16_t const_value;	
+	        uint16_t const_value;
+		uint16_t source;
+		struct {
+			uint16_t num_bt_methods;
+			struct bootstrap {
+				uint16_t ref;
+				uint16_t nargs;
+				uint16_t* args;
+			} *bt_methods;
+		};
+		struct {
+			uint16_t num_exceptions;
+			uint16_t* exc_table;
+		};
 	};
-	struct Attribute* next; 
 } Attribute;
 
 struct cpelem {
