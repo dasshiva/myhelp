@@ -84,6 +84,7 @@ typedef struct FM { // May be field or method
 	uint16_t attribute_count;
 	uint8_t deprecated;
 	uint8_t checked; // Only for methods
+	uint8_t* code; // Only for methods
 	Attribute* attributes;
 	struct FM* next;
 } FM;
