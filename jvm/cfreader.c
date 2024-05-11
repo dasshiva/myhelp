@@ -66,6 +66,17 @@ FM* GetMethodOrField(struct ClassFile* self, const char* name, const char* desc)
 	return NULL;
 }
 
+struct Attribute FindAttribute(struct Attribute* self, int n, const char* name) {
+	uint64_t reqd = Hash(name);
+	for (int i = 0; i < n; i++) {
+		if (Hash(self[i].name) == reqd) 
+			return self[i];
+	}
+	warn("Attribute %s not found", name);
+	struct Attribute a = { .length = 0 };
+	return a;
+}
+
 uint64_t parse_methods_or_fields(ClassFile* cf, FM** _target, uint16_t number, int method, uint64_t offset, uint8_t* buf) {
 	FM* target = *_target;
 	for (int i = 0; i < number; i++) {
@@ -80,6 +91,8 @@ uint64_t parse_methods_or_fields(ClassFile* cf, FM** _target, uint16_t number, i
 		target->checked = 0;
 		target->deprecated = 0;
 		target->attributes = malloc(sizeof(Attribute) * target->attribute_count);
+		if (target->attribute_count != 0)
+			target->attributes[0].FindAttribute = FindAttribute;
 		for (int j = 0; j < target->attribute_count; j++) {
 			target->attributes[j].name = (char*) cf->cp->GetString(cf->cp, u2());
 			if (!target->attributes[j].name) {
@@ -250,6 +263,8 @@ ClassFile* LoadClass(FileHandle* fh) {
 
 	cf->attributes_count = u2();
 	cf->attributes = malloc(sizeof(struct Attribute) * cf->attributes_count);
+	if (cf->attributes_count != 0) 
+		cf->attributes[0].FindAttribute = FindAttribute;
 	for (int i = 0; i < cf->attributes_count; i++) {
 		cf->attributes[i].name = (const char*) cf->cp->GetString(cf->cp, u2());
 		cf->attributes[i].length = u4();

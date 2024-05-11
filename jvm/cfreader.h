@@ -43,6 +43,7 @@ typedef struct Attribute {
 			uint16_t* exc_table;
 		};
 	};
+	struct Attribute (*FindAttribute) (struct Attribute*, int n, const char*);
 } Attribute;
 
 struct cpelem {

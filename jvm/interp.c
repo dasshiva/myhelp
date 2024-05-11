@@ -33,7 +33,8 @@ struct Frame {
 };
 
 int Run(ClassFile* cf, FM* method) {
-	auto code = method->attributes->code;
+	struct Attribute a = method->attributes->FindAttribute(method->attributes, method->attribute_count, "Code");
+	auto code = a.code;
 	struct Frame* frame = malloc(sizeof(struct Frame));
 	frame->locals = malloc(sizeof(struct value) * code.max_locals);
 	frame->stack = malloc(sizeof(struct value) * code.max_stack);
