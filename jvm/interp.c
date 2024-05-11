@@ -4,7 +4,7 @@
 enum Tag { INT8, INT16, INT32, INT64, FLOAT32, FLOAT64, REF };
 
 #define is_int(x, t)                                                           \
-  if ((!method->checked) && (x.tag != t)) {                                    \
+  if (x.tag != t) {                                    \
     warn("Method failed type verification");                                   \
     return 0;                                                                  \
   }
@@ -24,7 +24,7 @@ struct value {
 struct Frame {
   struct value *locals;
   struct value *stack;
-  uint16_t top;
+  int32_t top;
 };
 
 #define write_u8(ins)                                                          \
@@ -53,12 +53,16 @@ struct Frame {
 #include "codegen.h"
 #include <sys/mman.h>
 #define gen(opcode) arch_##opcode(&buffer, &index, &ins_size)
+#define verify(cond, s) if (cond) { warn(s); munmap(buffer, ins_size); return 0;}
+#define OVERFLOW_MSG "Method failed type verification : Stack overflow"
+#define UNDERFLOW_MSG "Method failed type verification : Stack underflow"
+#define INV_LTABLE "Method failed type verification : Invalid access to local variable"
+
 // Run will first validate the method to be run if it is not already validated,
 // while JIT compiling it at the same time. If the method is already validated,
 // it directly runs the compiled method
 int Run(ClassFile *cf, FM *method) {
-  struct Attribute a = method->attributes->FindAttribute(
-      method->attributes, method->attribute_count, "Code");
+  struct Attribute a = method->attributes->FindAttribute(method->attributes, method->attribute_count, "Code");
   auto code = a.code;
   struct Frame *frame = malloc(sizeof(struct Frame));
   frame->locals = malloc(sizeof(struct value) * code.max_locals);
@@ -70,7 +74,7 @@ int Run(ClassFile *cf, FM *method) {
     uint8_t *buffer = mmap(NULL, ins_size, PROT_READ | PROT_WRITE | PROT_EXEC, 0x20 | MAP_PRIVATE, 0, 0);
     if (buffer == MAP_FAILED) {
 	    perror("mmap");
-	    fatal("Could not allocated executable buffer for native code");
+	    fatal("Could not allocate executable buffer for native code");
     }
     method->code = buffer;
     while (pc < code.ins_length) {
@@ -85,32 +89,37 @@ int Run(ClassFile *cf, FM *method) {
 	break;
 
       case opcode(bipush): {
+	verify(frame->top + 1 == code.max_stack, OVERFLOW_MSG); 
         frame->stack[++frame->top].int32 = code.ins[++pc];
         frame->stack[frame->top].tag = INT32;
         break;
       }
 
-      case opcode(pop):
+      case opcode(pop): 
+	verify(frame->top == -1, UNDERFLOW_MSG);
         frame->top -= 1;
         break;
 
       case opcode(pop2):
-        frame->top -= 2;
+        verify(frame->top < 1, UNDERFLOW_MSG);
+	frame->top -= 2;
         break;
 
       case opcode(istore_0):
       case opcode(istore_1):
       case opcode(istore_2):
       case opcode(istore_3): {
+	verify((frame->top == -1), UNDERFLOW_MSG);
         struct value val = frame->stack[frame->top--];
         is_int(val, INT32);
+	verify((opc - opcode(istore_0)) >= code.max_locals, INV_LTABLE);
         frame->locals[opc - opcode(istore_0)].tag = INT32;
         frame->locals[opc - opcode(istore_0)].int32 = val.int32;
         break;
       }
 
       default: {
-          if (!method->checked && (opc > opcode(MAX))) {
+          if (opc > opcode(MAX)) {
              warn("Illegal opcode = %d", opc);
              return 1;
           }
@@ -123,6 +132,9 @@ int Run(ClassFile *cf, FM *method) {
     void (*do_something) () = method->code;
     do_something();
   }
-
-  return 0;
+  else {
+	  void (*do_that) () = method->code;
+	  do_that();
+  }
+  return 1;
 }
