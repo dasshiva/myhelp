@@ -321,6 +321,11 @@ ClassFile* LoadClass(FileHandle* fh) {
 			offset += cf->attributes[i].length;
 	        }
 	}
+	GetSystemFM()->Close(fh);
 	return cf;
 }
+
+// This is the bootstrap class loader, every single loader on the jvm will ultimately come here and call defineClass()
+// In fact any class that extends us will eventually have to call super.defineClass() and get to us
+// The bootstrap class loader only knows classes by their hashes, you could theoretically say it is something like HashMap<ClassFile, uint64_t>
 
