@@ -34,7 +34,7 @@ struct Frame {
 
 int Run(ClassFile* cf, FM* method) {
 	struct Attribute a = method->attributes->FindAttribute(method->attributes, method->attribute_count, "Code");
-	auto code = a.code;
+	Code code = a.code;
 	struct Frame* frame = malloc(sizeof(struct Frame));
 	frame->locals = malloc(sizeof(struct value) * code.max_locals);
 	frame->stack = malloc(sizeof(struct value) * code.max_stack);
@@ -44,7 +44,7 @@ int Run(ClassFile* cf, FM* method) {
 		uint8_t opc = code.ins[pc];
 		switch (opc) {
 			case opcode(nop): break;
-			case opcode(return): if (!method->checked) method->checked = 1; return 1;
+			case opcode(return): return 1;
 			case opcode(bipush): {
 				frame->stack[++frame->top].int32 = code.ins[++pc]; 
 				frame->stack[frame->top].tag = INT32;
@@ -58,7 +58,6 @@ int Run(ClassFile* cf, FM* method) {
 			case opcode(istore_3):
 			{
 				struct value val = frame->stack[frame->top--];
-				is_int(val, INT32);
 				frame->locals[opc - opcode(istore_0)].tag = INT32;
 				frame->locals[opc - opcode(istore_0)].int32 = val.int32;
 				break;

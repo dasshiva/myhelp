@@ -150,6 +150,7 @@ uint64_t parse_methods_or_fields(ClassFile* cf, FM** _target, uint16_t number, i
 	return offset;
 }
 
+#include <math.h>
 ClassFile* LoadClass(FileHandle* fh) {
 	uint64_t offset = 0;
 	uint64_t len = fh->Length(fh);
@@ -203,19 +204,52 @@ ClassFile* LoadClass(FileHandle* fh) {
 			case JVM_CONSTANT_Integer:
 				cp().int32 = u4();
 				break;
-			case JVM_CONSTANT_Long:
+			case JVM_CONSTANT_Long :{
 				uint32_t high = u4();
 				uint32_t low = u4();
 				cp().int64 = ((long) high << 32) | low;
+				i++;
 				break;
+			}
 			case JVM_CONSTANT_MethodHandle:
 				cp().ref_kind = u1();
 				cp().ref = u1();
 				break;
-			case JVM_CONSTANT_Float:
-			case JVM_CONSTANT_Double:
-				warn("Float and double is not implemented yet");
-				return NULL;
+			case JVM_CONSTANT_Float: {
+				int bits = u4();
+				if (bits == 0x7F800000) 
+					cp().flt32 = INFINITY;
+				else if (bits == 0xFF800000)
+					cp().flt32 = -INFINITY;
+				else if ((bits > 0x7F800000 && bits < 0x7FFFFFFF) || (bits > 0xFF800000 || bits < 0xffffffff))
+					cp().flt32 = NAN;
+				else {
+					int s = ((bits >> 31) == 0) ? 1 : -1;
+					int e = ((bits >> 23) & 0xff);
+					int m = (e == 0) ? (bits & 0x7fffff) << 1 :(bits & 0x7fffff) | 0x800000;
+					cp().flt32 = s * m * pow(2, e - 150);
+				}
+				break;
+			}
+			case JVM_CONSTANT_Double: {
+				uint32_t high_bytes = u4();
+				uint32_t low_bytes = u4();
+				long bits = ((long) high_bytes << 32) + low_bytes;
+				if (bits == 0x7ff0000000000000L)
+					cp().flt64 = INFINITY;
+				else if (bits == 0xfff0000000000000L)
+					cp().flt64 = -INFINITY;
+				else if ((bits > 0x7ff0000000000000L && bits < 0x7fffffffffffffffL) || (bits > 0xfff0000000000000L && bits < 0xffffffffffffffffL))
+					cp().flt64 = NAN;
+				else {
+					int s = ((bits >> 63) == 0) ? 1 : -1;
+					int e = (int)((bits >> 52) & 0x7ffL);
+					long m = (e == 0) ? (bits & 0xfffffffffffffL) << 1 : (bits & 0xfffffffffffffL) | 0x10000000000000L;
+					cp().flt64 = s * m * pow(2, e - 1075);
+				}
+				i++;
+				break;
+			}
 			default:
 				warn("Unrecognised constant pool tag %d", cp().tag);
 				return NULL;
