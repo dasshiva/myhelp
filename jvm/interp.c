@@ -101,7 +101,7 @@ int verifyAndGenerate(ClassFile *cf, FM *method, struct Frame* frame, uint32_t o
 
       case opcode(return):
 	gen(return);
-	break;
+	return offset;
 
       case opcode(bipush): {
 	verify(frame->top + 1 == code.max_stack, OVERFLOW_MSG); 
