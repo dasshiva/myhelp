@@ -91,6 +91,7 @@ uint64_t parse_methods_or_fields(ClassFile* cf, FM** _target, uint16_t number, i
 		target->checked = 0;
 		target->deprecated = 0;
 		target->attributes = malloc(sizeof(Attribute) * target->attribute_count);
+		target->code = NULL;
 		if (target->attribute_count != 0)
 			target->attributes[0].FindAttribute = FindAttribute;
 		for (int j = 0; j < target->attribute_count; j++) {

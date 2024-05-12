@@ -61,24 +61,39 @@ struct Frame {
 // Run will first validate the method to be run if it is not already validated,
 // while JIT compiling it at the same time. If the method is already validated,
 // it directly runs the compiled method
-int Run(ClassFile *cf, FM *method) {
+
+int verifyAndGenerate(ClassFile *cf, FM *method, struct Frame* frame, uint32_t offset, uint32_t* pc, uint32_t ins_size, Code c, uint8_t*);
+int Run(ClassFile* cf, FM* method) {
+  if (method->code)
+	  goto exec;
   struct Attribute a = method->attributes->FindAttribute(method->attributes, method->attribute_count, "Code");
-  auto code = a.code;
+  Code code = a.code; 
   struct Frame *frame = malloc(sizeof(struct Frame));
   frame->locals = malloc(sizeof(struct value) * code.max_locals);
   frame->stack = malloc(sizeof(struct value) * code.max_stack);
   frame->top = -1;
   uint32_t pc = 0;
+  if (!verifyAndGenerate(cf, method, frame, 0, &pc, 4096, code, NULL))
+	  return 0;
+exec:
+  void (*fn_ptr) () = method->code;
+  fn_ptr();
+  return 1;
+}
+
+int verifyAndGenerate(ClassFile *cf, FM *method, struct Frame* frame, uint32_t offset, uint32_t* pc, uint32_t ins_size, Code code, uint8_t* buffer) {
+  uint32_t index = offset;
   if (!method->checked) {
-    uint32_t ins_size = 4096, index = 0;
-    uint8_t *buffer = mmap(NULL, ins_size, PROT_READ | PROT_WRITE | PROT_EXEC, 0x20 | MAP_PRIVATE, 0, 0);
-    if (buffer == MAP_FAILED) {
-	    perror("mmap");
-	    fatal("Could not allocate executable buffer for native code");
+    if (offset == 0)  {
+	    buffer = mmap(NULL, ins_size, PROT_READ | PROT_WRITE | PROT_EXEC, 0x20 | MAP_PRIVATE, 0, 0);
+	    if (buffer == MAP_FAILED) {
+		    perror("mmap");
+		    fatal("Could not allocate executable buffer for native code");
+	    }
+	    method->code = buffer;
     }
-    method->code = buffer;
-    while (pc < code.ins_length) {
-      uint8_t opc = code.ins[pc];
+    while (*pc < code.ins_length) {
+      uint8_t opc = code.ins[*pc];
       switch (opc) {
       case opcode(nop):
 	gen(nop);
@@ -90,7 +105,8 @@ int Run(ClassFile *cf, FM *method) {
 
       case opcode(bipush): {
 	verify(frame->top + 1 == code.max_stack, OVERFLOW_MSG); 
-        frame->stack[++frame->top].int32 = code.ins[++pc];
+	*pc = *pc + 1;
+        frame->stack[++frame->top].int32 = code.ins[*pc];
         frame->stack[frame->top].tag = INT32;
         break;
       }
@@ -121,20 +137,14 @@ int Run(ClassFile *cf, FM *method) {
       default: {
           if (opc > opcode(MAX)) {
              warn("Illegal opcode = %d", opc);
-             return 1;
+             return 0;
           }
           fatal("Unknown opcode = %d", opc);
       	}
       }
 
-      pc++;
+      *pc = *pc + 1;
     }
-    void (*do_something) () = method->code;
-    do_something();
   }
-  else {
-	  void (*do_that) () = method->code;
-	  do_that();
-  }
-  return 1;
+  return index;
 }
