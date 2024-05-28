@@ -37,6 +37,8 @@ int main(int argc, const char** argv) {
 
 	assert(ehdr->e_type == ET_EXEC || ehdr->e_type == ET_DYN, "Elf file has to be executable");
 #ifdef __x86_64__
+	ZydisDecoder decoder;
+	ZydisDecoderInit(&decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_STACK_WIDTH_64);
 	assert(ehdr->e_machine == EM_X86_64, "Unknown machine type");
 #elif __aarch64__
 	assert(ehdr->e_machine == EM_AARCH64, "Unknown machine type");
@@ -52,7 +54,18 @@ int main(int argc, const char** argv) {
 	for (int i = 0; i < ehdr->e_phnum; i++) {
 		if (phdr->p_type == PT_LOAD && ((phdr->p_flags & 1) != 0)) {
 #ifdef __x86_64__
-
+			ZyanUSize offset = 0;
+			const ZyanUSize length = phdr->p_filesz;
+			ZydisDecodedInstruction ins;
+			ZyanU8* data = file + phdr->p_offset;
+			ZydisDecodedOperand ops[ZYDIS_MAX_OPERAND_COUNT];
+			while (ZYAN_SUCCESS(ZydisDecoderDecodeFull(&decoder, data + offset, length - offset, &ins, ops))) {
+				if (ins.opcode == ZYDIS_MNEMONIC_SYSCALL) {
+					uint8_t* ins = data + offset;
+					ins[1] = 0xB;
+				}
+				offset += ins.length;
+			}
 #elif __aarch64__
 
 #endif
