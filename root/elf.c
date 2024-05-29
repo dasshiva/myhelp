@@ -79,6 +79,12 @@ int main(int argc, const char** argv) {
 					offset += ins.length;
 				}
 #elif __aarch64__
+				for (uint64_t offset = 0; offset < phdr->p_filesz; offset += 4) {
+					uint32_t opcode = ((uint32_t*)(file + phdr->p_offset))[offset];
+					if (((opcode & 0b11111) == 1) && (((opcode >> 21) & 0b111) == 0) && ((opcode >> 24) == 0b11010100)) `{ // SVC
+						((uint32_t*)(file + phdr->p_offset))[offset] = 0b11010100001000000000000000000000; // BRK #0
+					}
+				}
 
 #endif	
 			}
@@ -89,10 +95,10 @@ int main(int argc, const char** argv) {
 				prot |= PROT_WRITE;
 			if ((phdr->p_flags & PF_R) != 0)
 				prot |= PROT_READ;
-			void* dest = mmap((void*)phdr->p_vaddr, phdr->p_filesz, PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+		        void* dest = mmap((void*)phdr->p_vaddr, phdr->p_memsz, PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 			assert(dest != MAP_FAILED, "could not allocate memory for loading executable");
 			memcpy(dest, file + phdr->p_offset, phdr->p_filesz);
-			mprotect(dest, phdr->p_filesz, prot);
+			mprotect(dest, phdr->p_memsz, prot);
 		}
 		phdr++;
 	}
