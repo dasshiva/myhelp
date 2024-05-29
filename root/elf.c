@@ -81,7 +81,7 @@ int main(int argc, const char** argv) {
 #elif __aarch64__
 				for (uint64_t offset = 0; offset < phdr->p_filesz; offset += 4) {
 					uint32_t opcode = ((uint32_t*)(file + phdr->p_offset))[offset];
-					if (((opcode & 0b11111) == 1) && (((opcode >> 21) & 0b111) == 0) && ((opcode >> 24) == 0b11010100)) `{ // SVC
+					if (((opcode & 0b11111) == 1) && (((opcode >> 21) & 0b111) == 0) && ((opcode >> 24) == 0b11010100)) { // SVC
 						((uint32_t*)(file + phdr->p_offset))[offset] = 0b11010100001000000000000000000000; // BRK #0
 					}
 				}
