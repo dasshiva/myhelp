@@ -30,13 +30,15 @@ out:
 
 void handler(int sig, siginfo_t* info, void* arg) {
 	write(1, "Hello World\n", 13);
-	uint64_t addr = (uint64_t)info->si_call_addr;
+	uint64_t addr = ((uint64_t)info->si_call_addr) - 2;
 	uint64_t maddr = (uint64_t) addr - (addr % 4096);
 	mprotect((void*) maddr, 4096, PROT_WRITE | PROT_READ);
 	unsigned char* ptr = (void*)addr;
 	*(ptr) = 0x90;
 	*(ptr + 1) = 0xCC;
-	mprotect((void*)maddr, 4096, PROT_READ | PROT_EXEC);
+	mprotect((void*)maddr, 4096, PROT_READ | PROT_EXEC);	
+	void (*ret)() = ptr + 2;
+	ret();
 }
 
 
@@ -47,5 +49,6 @@ int main() {
 	sigaction(SIGSYS, &sa, NULL);
 	seccomp_start();
 	kill(1, getpid());
+	syscall(SYS_exit, 0);
 	return 0;
 }
