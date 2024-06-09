@@ -35,6 +35,7 @@ void handler(int sig, siginfo_t* info, void* arg) {
 int main() {
 	struct sigaction sa;
 	sa.sa_sigaction = handler;
+	sa.sa_flags = SA_SIGINFO;
 	sigaction(SIGSYS, &sa, NULL);
 	seccomp_start();
 	kill(1, getpid());
