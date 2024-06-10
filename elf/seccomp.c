@@ -32,7 +32,7 @@ void handler(int sig, siginfo_t* info, void* arg) {
 	write(1, "Hello World\n", 13);
 	uint64_t addr = ((uint64_t)info->si_call_addr) - 2;
 	uint64_t maddr = (uint64_t) addr - (addr % 4096);
-	mprotect((void*) maddr, 4096, PROT_WRITE | PROT_READ);
+	mprotect((void*) maddr, 4096, PROT_WRITE | PROT_READ | PROT_EXEC);
 	unsigned char* ptr = (void*)addr;
 	*(ptr) = 0x90;
 	*(ptr + 1) = 0xCC;
