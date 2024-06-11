@@ -1,18 +1,21 @@
+#define _GNU_SOURCE
 #include <signal.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <syscall.h>
 #include <unistd.h>
+#include <sys/mman.h>
+#include <stdint.h>
 #include <sys/prctl.h>
-#include <linux/audit.h>
+#include <ucontext.h>
 #include <linux/filter.h>
 #include <linux/seccomp.h>
 #include <sys/stat.h>
 
-void handler(int sig, siginfo_t *info, void *arg) {
+void handler(int sig, siginfo_t *info, ucontext_t *arg) {
   write(1, "Hello World\n", 13);
-#ifdef __x86_64_
+#ifdef __x86_64__
   uint64_t addr = ((uint64_t)info->si_call_addr) - 2;
   uint64_t maddr = (uint64_t)addr - (addr % 4096);
   mprotect((void *)maddr, 4096, PROT_WRITE | PROT_READ | PROT_EXEC);
@@ -20,10 +23,11 @@ void handler(int sig, siginfo_t *info, void *arg) {
   *(ptr) = 0x90;
   *(ptr + 1) = 0xCC;
   mprotect((void *)maddr, 4096, PROT_READ | PROT_EXEC);
-  void (*ret)() = ptr + 2;
-  ret();
-#endif
+  arg->uc_mcontext.gregs[REG_RAX] = 2;
+  arg->uc_mcontext.gregs[REG_RIP] = ptr + 2;
+#elif __aarch64__
   syscall(SYS_exit, 0);
+ #endif
 }
 
 /* The below function install_filter() and the macro ARRAY_SIZE is a modified version 
@@ -70,7 +74,7 @@ int main() {
   sigaction(SIGSYS, &sa, NULL);
   prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
   install_filter();
-  kill(9, getpid());
+  long n = syscall(SYS_mmap);
   syscall(SYS_exit, 0);
   return 0;
 }
