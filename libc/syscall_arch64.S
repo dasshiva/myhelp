@@ -1,4 +1,5 @@
-.globl syscall:
+.globl syscall
+syscall:
 	uxtw x8, w0
         mov x0, x1
         mov x1, x2

@@ -114,7 +114,7 @@ struct map* parse_proc_map() {
 #ifdef __x86_64__
 	asm volatile ("movq %%rsp, %0" : "=r"(rsp) ::);
 #elif __aarch64__
-	asm volatile ("mov sp, %0" : "=r" (rsp) ::);
+	asm volatile ("mov %0, sp" : "=r" (rsp) ::);
 #endif
 	uint64_t* entries = sbrk(8);
 	uint64_t* heap_ptr = sbrk(sizeof(struct map*));
