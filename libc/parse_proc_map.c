@@ -72,7 +72,7 @@ void* sbrk(long increment) {
 }
 
 long open(const char* name, uint32_t mode) {
-	return syscall(SYS_open, name, mode);
+	return syscall(SYS_openat, 0, name, mode);
 }
 
 long read(int fd, void* buf, uint64_t len)  {
