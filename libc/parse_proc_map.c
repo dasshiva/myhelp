@@ -3,10 +3,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#ifndef __clang__
-#error "DO NOT USE ANYTHING OTHER THAN CLANG FOR COMPILING THIS"
-#endif 
-
 #define PF_R 1
 #define PF_W 2
 #define PF_X 4
@@ -20,45 +16,7 @@ struct map {
 	uint8_t perms;
 };
 
-// gcc ends up using rbp on x86 when we use var args for syscall _without_ setting up the frame pointer
-// I can't say they are wrong because naked functions cannot have a prologue. I had two options either to separate the assembly or use clang
-// Since I didn't want to separate the assembly from the source , we always use clang because clang in naked functions
-// does not generate any code other than what is inside the asm block.
-__attribute__((naked))
-long syscall(long syscall, ...) {
-#ifdef __x86_64__
-	asm volatile(
-		"movq %%rdi, %%rax\n"
-		"movq %%rsi, %%rdi\n"
-		"movq %%rdx, %%rsi\n"
-		"movq %%rcx, %%rdx\n"
-		"movq %%r8, %%r10\n"
-		"movq %%r9, %%r8\n"
-		"syscall\n"
-		"ret"
-		: 
-		:
-		: 
-
-	);
-#elif __aarch64__
-	asm volatile(
-		"uxtw x8, w0\n"
-		"mov x0, x1\n"
-		"mov x1, x2\n"
-		"mov x2, x3\n"
-		"mov x3, x4\n"
-		"mov x4, x5\n"
-		"mov x5, x6\n"
-		"mov x6, x7\n"
-		"svc #0\n"
-		"b lr"
-		: 
-		: 
-		:
-	);
-#endif
-}
+extern long syscall(long syscall, ...);
 
 #include <syscall.h>
 void* sbrk(long increment) {
